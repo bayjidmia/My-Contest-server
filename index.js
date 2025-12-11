@@ -23,21 +23,47 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
     const db = client.db("my_contest_db");
-    const parcelCollection = db.collection("contest");
+    const contestCollection = db.collection("contest");
 
     app.get("/latest-contest", async (req, res) => {
-      const cursor = parcelCollection.find().sort({ _id: -1 }).limit(6);
+      const cursor = contestCollection.find().sort({ _id: -1 }).limit(6);
       const result = await cursor.toArray();
       res.send(result);
+    });
+
+    app.get("/dashboard/contest-aprove", async (req, res) => {
+      const cursor = contestCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.get("/all-content", async (req, res) => {
+      const status = req.query.status; // user diye dibe ?status=pending
+
+      let filter = {};
+
+      if (status) {
+        filter.status = status;
+      }
+
+      const contests = await contestCollection.find(filter).toArray();
+
+      res.send(contests);
     });
 
     app.get("/contest-details/:id", async (req, res) => {
       const id = req.params.id;
       console.log(id);
       const query = { _id: new ObjectId(id) };
-      const result = await parcelCollection.findOne(query);
+      const result = await contestCollection.findOne(query);
       console.log(result);
       res.send(result);
+    });
+
+    app.post("/create-contest", async (req, res) => {
+      const contest = req.body;
+      const cursor = await contestCollection.insertOne(contest);
+      res.send(cursor);
     });
 
     await client.db("admin").command({ ping: 1 });
