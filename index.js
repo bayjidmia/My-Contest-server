@@ -37,7 +37,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-content", async (req, res) => {
+    app.get("/all-contest", async (req, res) => {
       const status = req.query.status; // user diye dibe ?status=pending
 
       let filter = {};
@@ -64,6 +64,38 @@ async function run() {
       const contest = req.body;
       const cursor = await contestCollection.insertOne(contest);
       res.send(cursor);
+    });
+    app.patch("/contest-status/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const updateDoc = {
+        $set: {
+          status: req.body.status, // "approved"
+        },
+      };
+
+      const result = await contestCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+
+      res.send(result);
+    });
+    app.patch("/contest-cancle/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const updateDoc = {
+        $set: {
+          status: req.body.status, // "approved"
+        },
+      };
+
+      const result = await contestCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+
+      res.send(result);
     });
 
     await client.db("admin").command({ ping: 1 });
