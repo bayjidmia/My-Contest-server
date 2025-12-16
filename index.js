@@ -32,7 +32,12 @@ async function run() {
     app.post("/users", async (req, res) => {
       const user = req.body;
       user.role = "user";
+      const email = user.email;
       user.createdAt = new Date();
+      const userExist = await userCollection.findOne({ email });
+      if (userExist) {
+        res.send({ massage: "user already exist" });
+      }
       const result = await userCollection.insertOne(user);
       res.send(result);
     });
@@ -118,7 +123,8 @@ async function run() {
     });
     app.post("/create-checkout-session", async (req, res) => {
       const paymentInfo = req.body;
-
+      console.log("ttttttttttttt", paymentInfo);
+      const deadline = String(paymentInfo.deadline);
       const amount = parseInt(paymentInfo.entryFee) * 100;
       const session = await stripe.checkout.sessions.create({
         line_items: [
@@ -134,12 +140,15 @@ async function run() {
           },
         ],
         customer_email: paymentInfo.userEmail,
+
         mode: "payment",
         metadata: {
           contestId: paymentInfo.contestId,
           contestName: paymentInfo.contestName,
           creatorEmail: paymentInfo.creatorEmail,
+          deadline: deadline,
         },
+
         success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancaled`,
       });
@@ -183,6 +192,7 @@ async function run() {
           contestName: session.metadata.contestName,
           transactionId: session.payment_intent,
           paymentstatus: session.payment_status,
+          deadline: session.metadata.deadline,
         };
 
         if (session.payment_status === "paid") {
@@ -228,10 +238,26 @@ async function run() {
       res.send(result);
     });
 
+    app.get("", async (req, res) => {});
+
     await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
+    app.get("/my-contest", async (req, res) => {
+      const email = req.query.email;
+
+      if (!email) {
+        return res.status(400).send({ message: "email required" });
+      }
+
+      // user যেসব contest এ payment করেছে
+      const payments = await paymentCollection
+        .find({ userEmmail: email })
+        .sort({ deadline: 1 })
+        .toArray();
+      res.send(payments);
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
