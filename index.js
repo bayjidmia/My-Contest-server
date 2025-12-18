@@ -237,13 +237,6 @@ async function run() {
 
       res.send(result);
     });
-
-    app.get("", async (req, res) => {});
-
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
     app.get("/my-contest", async (req, res) => {
       const email = req.query.email;
 
@@ -258,6 +251,184 @@ async function run() {
         .toArray();
       res.send(payments);
     });
+
+    app.get("/all-user", async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.patch("/status-change/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!role) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Role is required" });
+        }
+
+        const result = await userCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { role } }
+        );
+
+        if (result.modifiedCount > 0) {
+          res.json({ success: true, modifiedCount: result.modifiedCount });
+        } else {
+          res
+            .status(404)
+            .json({ success: false, message: "No document updated" });
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    app.patch("/status-change/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!role) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Role is required" });
+        }
+
+        const result = await userCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { role } }
+        );
+
+        if (result.modifiedCount > 0) {
+          res.json({ success: true, modifiedCount: result.modifiedCount });
+        } else {
+          res
+            .status(404)
+            .json({ success: false, message: "No document updated" });
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
+    app.patch("/role-change/:id", async (req, res) => {
+      const { id } = req.params;
+      const { role } = req.body;
+
+      console.log(role, id);
+
+      if (!role) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Role is required" });
+      }
+
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role } }
+      );
+      res.send(result);
+    });
+
+    app.patch("/role-change/:id", async (req, res) => {
+      const { id } = req.params;
+      const { role } = req.body;
+
+      console.log(role, id);
+
+      if (!role) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Role is required" });
+      }
+
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role } }
+      );
+      res.send(result);
+    });
+
+    app.get("/set-winner/:email", async (req, res) => {
+      const email = req.params.email;
+
+      try {
+        const result = await contestCollection
+          .find({ creatorEmail: email }) // বা winnerEmail: email
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to get winner contests" });
+      }
+    });
+
+    app.patch("/declare-winner", async (req, res) => {
+      try {
+        const { contestId, winner } = req.body;
+        console.log(contestId, winner);
+
+        if (!contestId || !winner?.email) {
+          return res.status(400).send({
+            message: "Invalid request data",
+          });
+        }
+
+        const query = { _id: new ObjectId(contestId) };
+
+        // contest খুঁজে বের করো
+        const contest = await contestCollection.findOne(query);
+        console.log(contest);
+
+        if (!contest) {
+          return res.status(404).send({
+            message: "Contest not found",
+          });
+        }
+
+        // 🔒 Already winner থাকলে আর update হবে না
+        if (contest.winner && contest.winner.email) {
+          return res.status(400).send({
+            message: "Winner already declared",
+          });
+        }
+
+        // ✅ Winner set করো
+        const updateDoc = {
+          $set: {
+            winner: {
+              name: winner.name,
+              email: winner.email,
+              photo: winner.photo,
+              declaredAt: new Date(),
+            },
+          },
+        };
+
+        const result = await contestCollection.updateOne(query, updateDoc);
+        console.log(result);
+        console.log("ssssssssssssssssssssssssssss", result.modifiedCount);
+
+        res.send({
+          success: true,
+          modifiedCount: result.modifiedCount,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({
+          message: "Internal server error",
+        });
+      }
+    });
+
+    await client.db("admin").command({ ping: 1 });
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!"
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
