@@ -6,9 +6,35 @@ require("dotenv").config();
 const stripe = require("stripe")(process.env.STRIPE_SECRET);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./contest-site-auth-firebase-adminsdk-fbsvc-cd36bc03f0.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 // midleware
 app.use(express.json());
 app.use(cors());
+
+const verifyToken = async (req, res, next) => {
+  const token = req.headers.authorization;
+
+  if (!token) {
+    return res.status(401).send({ massage: "unothorized acess" });
+  }
+
+  try {
+    const idToken = token.split(" ")[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    console.log("decoded", decoded);
+    req.decoded_email = decoded.email;
+    next();
+  } catch {
+    return res.status(401).send({ massage: "unothorized access" });
+  }
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.xyk22ac.mongodb.net/?appName=Cluster0`;
 const client = new MongoClient(uri, {
@@ -54,7 +80,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-contest", async (req, res) => {
+    app.get("/all-contest", verifyToken, async (req, res) => {
       const status = req.query.status; // user diye dibe ?status=pending
 
       let filter = {};
@@ -237,8 +263,10 @@ async function run() {
 
       res.send(result);
     });
-    app.get("/my-contest", async (req, res) => {
+    app.get("/payments", verifyToken, async (req, res) => {
       const email = req.query.email;
+
+      console.log(req.headers);
 
       if (!email) {
         return res.status(400).send({ message: "email required" });
@@ -423,6 +451,86 @@ async function run() {
           message: "Internal server error",
         });
       }
+    });
+
+    app.get("/user/role/:email", async (req, res) => {
+      const email = req.params.email;
+
+      if (!email) {
+        return res.status(400).send({ message: "Email is required" });
+      }
+
+      const user = await userCollection.findOne({ email });
+
+      if (!user) {
+        return res.send({ role: null });
+      }
+
+      res.send({ role: user.role });
+    });
+
+    app.get("/my-create-contest", async (req, res) => {
+      const email = req.query.email;
+      console.log(email);
+
+      if (!email) {
+        return res.status(400).send({ message: "Email is required" });
+      }
+
+      const result = await contestCollection
+        .find({ creatorEmail: email })
+        .toArray();
+
+      res.send(result);
+    });
+
+    app.delete("/contest/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const result = await contestCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.send(result);
+    });
+
+    app.get("/all-payments", async (req, res) => {
+      try {
+        const payments = await paymentCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send(payments);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Server error" });
+      }
+    });
+
+    app.get("/all-payments", async (req, res) => {
+      try {
+        const payments = await paymentCollection.find().toArray();
+        res.send(payments);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Server error" });
+      }
+    });
+
+    app.get("/dashboard/winning-contest", async (req, res) => {
+      const email = req.query.email;
+
+      if (!email) {
+        return res.status(400).send({ message: "Email required" });
+      }
+
+      const result = await contestCollection
+        .find({
+          "winner.email": email,
+        })
+        .toArray();
+
+      res.send(result);
     });
 
     await client.db("admin").command({ ping: 1 });
