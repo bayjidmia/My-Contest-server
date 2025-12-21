@@ -1,2 +1,6 @@
 node_modules
 .env
+*.json
+firebase-adminsdk*.json
+contest-site-auth-firebase-adminsdk-fbsvc-cd36bc03f0.json
+
