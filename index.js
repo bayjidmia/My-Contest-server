@@ -8,7 +8,12 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./contest-site-auth-firebase-adminsdk-fbsvc-cd36bc03f0.json");
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
+  "utf8"
+);
+const serviceAccount = JSON.parse(decoded);
+
+// const serviceAccount = require("./contest-site-auth-firebase-adminsdk-fbsvc-cd36bc03f0.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -19,23 +24,35 @@ app.use(express.json());
 app.use(cors());
 
 const verifyToken = async (req, res, next) => {
-  const token = req.headers.authorization;
+  const authHeader = req.headers.authorization; // Bearer <token>
 
-  if (!token) {
-    return res.status(401).send({ massage: "unothorized acess" });
+  if (!authHeader) {
+    return res.status(401).send({ message: "Unauthorized access: no token" });
   }
 
   try {
-    const idToken = token.split(" ")[1];
+    const idToken = authHeader.split(" ")[1];
+    if (!idToken) throw new Error("Token malformed");
+
     const decoded = await admin.auth().verifyIdToken(idToken);
-    console.log("decoded", decoded);
+
+    console.log("decodedddddecoded", decoded);
+
+    if (!decoded?.email) {
+      return res
+        .status(401)
+        .send({ message: "Unauthorized: token has no email" });
+    }
+
     req.decoded_email = decoded.email;
     next();
-  } catch {
-    return res.status(401).send({ massage: "unothorized access" });
+  } catch (err) {
+    console.error("verifyToken error:", err);
+    return res
+      .status(401)
+      .send({ message: "Unauthorized access", error: err.message });
   }
 };
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.xyk22ac.mongodb.net/?appName=Cluster0`;
 const client = new MongoClient(uri, {
   serverApi: {
@@ -80,8 +97,8 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-contest", verifyToken, async (req, res) => {
-      const status = req.query.status; // user diye dibe ?status=pending
+    app.get("/all-contest", async (req, res) => {
+      const status = req.query.status;
 
       let filter = {};
 
@@ -136,7 +153,7 @@ async function run() {
 
       const updateDoc = {
         $set: {
-          status: req.body.status, // "approved"
+          status: req.body.status,
         },
       };
 
@@ -186,7 +203,7 @@ async function run() {
     app.patch("/payment-success", async (req, res) => {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      console.log("ppppppppppppppppppppppppppppppp", session);
+
       const transactionId = session.payment_intent;
       const querry = { transactionId: transactionId };
       const existingpayment = await paymentCollection.findOne(querry);
@@ -263,23 +280,35 @@ async function run() {
 
       res.send(result);
     });
+
     app.get("/payments", verifyToken, async (req, res) => {
-      const email = req.query.email;
+      try {
+        const email = req.query.email;
+        if (!email) {
+          return res.status(400).send({ message: "Email required" });
+        }
 
-      console.log(req.headers);
+        console.log(req.decoded_email);
 
-      if (!email) {
-        return res.status(400).send({ message: "email required" });
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
+
+        const payments = await paymentCollection
+          .find({
+            userEmmail: email,
+          })
+          .sort({ deadline: 1 })
+          .toArray();
+
+        res.send(payments);
+      } catch (err) {
+        console.error("Payments route error:", err);
+        res
+          .status(500)
+          .send({ message: "Internal Server Error", error: err.message });
       }
-
-      // user যেসব contest এ payment করেছে
-      const payments = await paymentCollection
-        .find({ userEmmail: email })
-        .sort({ deadline: 1 })
-        .toArray();
-      res.send(payments);
     });
-
     app.get("/all-user", async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
@@ -469,7 +498,7 @@ async function run() {
       res.send({ role: user.role });
     });
 
-    app.get("/my-create-contest", async (req, res) => {
+    app.get("/my-create-contest", verifyToken, async (req, res) => {
       const email = req.query.email;
       console.log(email);
 
@@ -478,7 +507,7 @@ async function run() {
       }
 
       const result = await contestCollection
-        .find({ creatorEmail: email })
+        .find({ creatorEmail: req.decoded_email })
         .toArray();
 
       res.send(result);
@@ -517,7 +546,7 @@ async function run() {
       }
     });
 
-    app.get("/dashboard/winning-contest", async (req, res) => {
+    app.get("/dashboard/winning-contest", verifyToken, async (req, res) => {
       const email = req.query.email;
 
       if (!email) {
@@ -526,17 +555,17 @@ async function run() {
 
       const result = await contestCollection
         .find({
-          "winner.email": email,
+          "winner.email": req.decoded_email,
         })
         .toArray();
 
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
