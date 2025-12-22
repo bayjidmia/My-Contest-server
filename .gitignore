@@ -1,4 +1,4 @@
 node_modules
 .env
 contest-site-auth-firebase-adminsdk-fbsvc-cd36bc03f0.json
-.varcel
+.vercel
