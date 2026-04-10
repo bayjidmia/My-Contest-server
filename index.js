@@ -64,7 +64,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // await client.connect();
+    await client.connect();
     const db = client.db("my_contest_db");
     const contestCollection = db.collection("contest");
     const paymentCollection = db.collection("payments");
