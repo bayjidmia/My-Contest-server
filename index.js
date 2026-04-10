@@ -9,7 +9,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const admin = require("firebase-admin");
 
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
-  "utf8"
+  "utf8",
 );
 const serviceAccount = JSON.parse(decoded);
 
@@ -64,14 +64,12 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     const db = client.db("my_contest_db");
     const contestCollection = db.collection("contest");
     const paymentCollection = db.collection("payments");
     const userCollection = db.collection("users");
 
-    // user related API
     app.post("/users", async (req, res) => {
       const user = req.body;
       user.role = "user";
@@ -86,7 +84,9 @@ async function run() {
     });
 
     app.get("/latest-contest", async (req, res) => {
-      const cursor = contestCollection.find().sort({ _id: -1 }).limit(6);
+      let filter = { status: "approved" };
+
+      const cursor = contestCollection.find(filter).sort({ _id: -1 }).limit(6);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -143,7 +143,7 @@ async function run() {
 
       const result = await contestCollection.updateOne(
         { _id: new ObjectId(id) },
-        updateDoc
+        updateDoc,
       );
 
       res.send(result);
@@ -159,7 +159,7 @@ async function run() {
 
       const result = await contestCollection.updateOne(
         { _id: new ObjectId(id) },
-        updateDoc
+        updateDoc,
       );
 
       res.send(result);
@@ -275,7 +275,7 @@ async function run() {
               submittedAt: new Date(),
             },
           },
-        }
+        },
       );
 
       res.send(result);
@@ -327,7 +327,7 @@ async function run() {
 
         const result = await userCollection.updateOne(
           { _id: new ObjectId(id) },
-          { $set: { role } }
+          { $set: { role } },
         );
 
         if (result.modifiedCount > 0) {
@@ -356,7 +356,7 @@ async function run() {
 
         const result = await userCollection.updateOne(
           { _id: new ObjectId(id) },
-          { $set: { role } }
+          { $set: { role } },
         );
 
         if (result.modifiedCount > 0) {
@@ -386,7 +386,7 @@ async function run() {
 
       const result = await userCollection.updateOne(
         { _id: new ObjectId(id) },
-        { $set: { role } }
+        { $set: { role } },
       );
       res.send(result);
     });
@@ -405,7 +405,7 @@ async function run() {
 
       const result = await userCollection.updateOne(
         { _id: new ObjectId(id) },
-        { $set: { role } }
+        { $set: { role } },
       );
       res.send(result);
     });
